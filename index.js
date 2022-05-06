@@ -1,3 +1,7 @@
+if(process.env.NODE_ENV !== 'production'){
+    require('dotenv').config();
+}
+
 const express = require('express');
 const app = express();                                      //Running Express
 const path = require('path');                               //Attaching directory names
@@ -8,7 +12,6 @@ const flash = require('connect-flash');                     //Flash Messages
 const methodOverride = require('method-override');          //Changing HTTP verbs
 const passport = require('passport');                       //Authentication
 const LocalStrategy = require('passport-local');            //Could be Google or Yahoo, but we need Local
-
 const campgroundRoutes = require('./routes/campgrounds');   //All Routes
 const reviewRoutes = require('./routes/reviews');
 const userRoutes = require('./routes/users');
@@ -16,14 +19,39 @@ const userRoutes = require('./routes/users');
 const User = require('./models/user');
 const customError = require('./utils/customError');
 
+const mongoSanitize = require('express-mongo-sanitize');    //This module searches for any keys in objects that begin with illegal signs from req.body, req.query or req.params
+const helmet = require('helmet');                           //Setting security headers
+const MongoDbStore = require('connect-mongo');              //To store sessions in mongo
+const {connectSrcUrls,scriptSrcUrls,styleSrcUrls} = require('./allowed_Sources_Of_contentSecurityPolicy_Header');
+
+
+//Running Mongoose and connecting to host.
+const mongoDbUrl = process.env.DB_URL || 'mongodb://localhost:27017/camp';
+const mySecret = process.env.SECRET || 'changethissecretASAP!';
+
+const options = {                                           //Store Options
+    mongoUrl: mongoDbUrl,
+    secret: mySecret,
+    touchAfter: 24*60
+}
+
+mongoose.connect( mongoDbUrl, { useNewUrlParser: true, useCreateIndex: true, useUnifiedTopology: true, useFindAndModify: false })
+.then(()=>console.log('DataBase Connected.'))
+.catch((err)=>{
+    console.log(err.message);
+    console.log('Couldn\'t connect to DataBase');
+});
 
 
 const sessionConfig = {                                     //Configuration for the session
-    secret: 'thisshouldbeabettersecret!',
+    store: MongoDbStore.create(options),
+    name: 'myCookie',
+    secret: mySecret,
     resave: false,
     saveUninitialized: true,
     cookie: {
         httpOnly: true,
+        // secure: true,
         expires: Date.now() + 1000 * 60 * 60 * 24 * 7,
         maxAge: 1000 * 60 * 60 * 24 * 7
     }
@@ -38,25 +66,49 @@ function usePassport(){                                     //Passport Essential
 };
 
 
-app.engine('ejs', ejsMate);
+app.engine('ejs', ejsMate);                                 //VULNERABLE!!!!
 app.set('view engine', 'ejs');                              //Setting the view engine for templating to be ejs
 app.set('views', path.join(__dirname, 'views'));            //To use views from the app's directory
 app.use(flash());                                           //Running Flash
 app.use(express.urlencoded({ extended: true }));            //Parsing req.body for post request, supports x-www-form-urlencoded
 app.use(methodOverride('_method'));                         //To use as a query string while changing HTTP verbs
 app.use(express.static(path.join(__dirname, 'public')))     //Serving the public directory in every request
+
 app.use(session(sessionConfig))                             //Using session for every request and passing in the config
+
+app.use(mongoSanitize());                                   //Prohibits entering dangerous characters in query or body
+
+
+
+app.use(                                                    //Defining Content-Security-Policy Header to load from MapBox and Cloudinay.
+    helmet.contentSecurityPolicy({
+        directives: {
+            connectSrc: ["'self'", ...connectSrcUrls],
+            scriptSrc: ["'unsafe-inline'", "'self'", ...scriptSrcUrls],
+            styleSrc: ["'self'", "'unsafe-inline'", ...styleSrcUrls],
+            workerSrc: ["'self'", "blob:"],
+            imgSrc: [
+                "'self'",
+                "blob:",
+                "data:",
+                "https://res.cloudinary.com/dtfz6vdx1/", 
+                "https://images.unsplash.com/",
+            ],
+        },
+    })
+);
+
+
+app.use(helmet({                                            //Rest of the Headers
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginResourcePolicy: false,
+    contentSecurityPolicy: false
+}));
+
 
 //Calling Passport Essentials after running session.
 usePassport();
-
-//Running Mongoose and connecting to host.
-mongoose.connect('mongodb://localhost:27017/camp', { useNewUrlParser: true, useCreateIndex: true, useUnifiedTopology: true, useFindAndModify: false })
-.then(()=>console.log('DataBase Connected'))
-.catch((err)=>{
-    console.log(err.message);
-    console.log('Couldn\'t connect to DataBase');
-});
 
 
 app.use((req, res, next) => {                                       //For every request...
@@ -75,6 +127,7 @@ app.use('/campgrounds/:id/reviews', reviewRoutes);
 
 app.get('/', (req, res) => { res.render('home'); });  //Serving the Home Page
 
+app.get('/about', (req,res) => { res.render('about'); })    //The About Me Page
 
 app.all('*', (req, res, next) => { next(new customError(404, 'Page Not Found')); })     //If searched for anything else, return 404.
 
@@ -84,4 +137,5 @@ app.use((err, req, res, next) => {                      //Error Handler
     res.status(statusCode).render('error', { err });
 })
 
-app.listen(6999, () => { console.log('Server Listening on Port 6999'); })   //Listen
+const port = 6999;
+app.listen( port, () => { console.log(`Serving on Port ${port}`); })   //Listen
