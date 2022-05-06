@@ -137,5 +137,5 @@ app.use((err, req, res, next) => {                      //Error Handler
     res.status(statusCode).render('error', { err });
 })
 
-const port = 6999;
+const port = process.env.PORT || 6999;
 app.listen( port, () => { console.log(`Serving on Port ${port}`); })   //Listen
