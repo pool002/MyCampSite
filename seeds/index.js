@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const Campground = require('../models/campground');
 
 
-mongoose.connect('mongodb://localhost:27017/camp', {
+mongoose.connect('mongodb+srv://Fahr4:381cw9yt9qM9sehz@campdata.wb4jj.mongodb.net/myFirstDatabase?retryWrites=true&w=majority', {
     useNewUrlParser: true,
     useCreateIndex: true,
     useUnifiedTopology: true
@@ -22,11 +22,11 @@ const { places, descriptors } = require('./seedHelpers');
 
 const seedDB = async () => {
     await Campground.deleteMany({});
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 5; i++) {
         const random1000 = Math.floor(Math.random() * 1000);
         const price = Math.floor(Math.random() * 20) + 10;
         const camp = new Campground({
-            author: '6274addcba5b7a3d9083aa08',
+            author: '6274d93b5749159deb46cb7e',
             location: `${cities[random1000].city}, ${cities[random1000].state}`,
             geometry:{
                 type:'Point',
@@ -40,7 +40,7 @@ const seedDB = async () => {
             price,
             images:[
                 {
-                url:'https://res.cloudinary.com/dtfz6vdx1/image/upload/v1651586515/Camp/akwddjwad8obkylijtuf.jpg',
+                url:'https://res.cloudinary.com/dtfz6vdx1/image/upload/v1651551183/samples/landscapes/girl-urban-view.jpg',
                 filename:'1'
                 }
         ]
